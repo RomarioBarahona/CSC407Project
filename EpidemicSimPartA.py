@@ -1,56 +1,80 @@
 import random
 import matplotlib.pyplot as plt
 
-# Step 1: Initialize the simulation
-N = 1000  # Number of people
-K = 10  # Number of communities
-b = 20  # Number of bridge individuals
-infected = [False] * N  # Array to record infection status
-infected[0] = True  # Initial infected person
-total_infected = [1]  # List to store the number of infected individuals after each round
+# Function to simulate the pandemic spread in multiple communities with bridges
+def simulate_pandemic_with_random_communities(alpha, beta, T):
+    # Generate random values for the number of communities and their sizes
+    num_communities = random.randint(10, 50)  # Random number of communities
+    community_sizes = []
+    remaining_people = 1000
+    
+    for _ in range(num_communities - 1):
+        community_size = random.randint(1, remaining_people - (num_communities - len(community_sizes)) + 1)
+        community_sizes.append(community_size)
+        remaining_people -= community_size
+    
+    community_sizes.append(remaining_people)
+    
+    # Initialize the simulation
+    N = sum(community_sizes)
+    initial_infected = [False] * N
+    total_infected = [0] * T
+
+    # Divide people into communities
+    communities = []
+    start = 0
+    for size in community_sizes:
+        community = list(range(start, start + size))
+        communities.append(community)
+        start += size
+
+    # Create random bridges between communities
+    bridge_count = random.randint(1, 20)  # Random number of bridges
+    for _ in range(bridge_count):
+        community1, community2 = random.sample(range(num_communities), 2)
+        person1 = random.choice(communities[community1])
+        person2 = random.choice(communities[community2])
+        # Connect the two individuals
+        communities[community1].append(person2)
+        communities[community2].append(person1)
+
+    # Select a random initial infected person
+    initial_infected_person = random.randint(0, N - 1)
+    initial_infected[initial_infected_person] = True
+    total_infected[0] = 1
+
+    # Simulate the spread of the pandemic
+    for round in range(1, T):
+        new_infections = 0
+        for i in range(N):
+            if initial_infected[i]:
+                community_index = next((index for index, community in enumerate(communities) if i in community), None)
+                if community_index is not None:
+                    contacts = random.sample(communities[community_index], int(alpha * N))
+                    for j in contacts:
+                        if not initial_infected[j] and random.random() < beta:
+                            initial_infected[j] = True
+                            new_infections += 1
+        
+        total_infected[round] = total_infected[round - 1] + new_infections
+
+    return total_infected
 
 # Parameters
-alpha = 0.005  # Ratio of contacts within communities
-beta = 0.01  # Infection probability
-t1 = 5  # Duration of infectiousness
-t2 = 20  # Duration of immunity
+alpha = 0.005     # Ratio of contacts
+beta = 0.01       # Infection probability
+T = 2000          # Total rounds
 
-# Create community assignments for each individual
-community_assignments = [random.randint(0, K - 1) for _ in range(N)]
+# Run the simulation for random communities with random sizes 5 times
+for i in range(5):
+    total_infected = simulate_pandemic_with_random_communities(alpha, beta, T)
 
-# Step 2 to 4: Simulate the spread of the pandemic
-T = 2000  # Total rounds
-for round in range(1, T):
-    new_infections = 1  # Initialize with 1 for the initial infected person
-    for i in range(N):
-        if infected[i]:
-            contacts_within_community = [j for j in range(N) if community_assignments[j] == community_assignments[i]]
-            contacts_outside_community = [j for j in range(N) if community_assignments[j] != community_assignments[i]]
-            if i < b:
-                contacts = random.sample(contacts_outside_community, int(alpha * len(contacts_outside_community)))
-            else:
-                contacts = random.sample(contacts_within_community, int(alpha * len(contacts_within_community)))
+    # Plot the results for each simulation
+    plt.plot(range(T), total_infected, label=f'Simulation {i+1}')
 
-            for j in contacts:
-                if not infected[j] and random.random() < beta:
-                    infected[j] = True
-                    new_infections += 1
-
-    # Step 5: Record the number of infected individuals
-    total_infected.append(total_infected[-1] + new_infections)
-
-# Plot the results
-plt.plot(range(T), total_infected)
+# Customize the plot
 plt.xlabel('Rounds')
 plt.ylabel('Total Infected')
-plt.title('Pandemic Spread in Communities')
+plt.title('Pandemic Spread in Random Communities with Bridges (5 Simulations)')
+plt.legend()
 plt.show()
-
-# Step 6: Calculate R0 for step 6
-R0_step6 = total_infected[t1] / total_infected[0]
-
-# Step 7: Calculate R0 for step 7
-R0_step7 = total_infected[t1 + t2] / total_infected[0]
-
-print(f'R0 for step 6: {R0_step6}')
-print(f'R0 for step 7: {R0_step7}')

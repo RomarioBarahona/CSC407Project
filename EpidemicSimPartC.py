@@ -1,83 +1,101 @@
 import random
 import matplotlib.pyplot as plt
-import networkx as nx
 
-# Step 1: Initialize the simulation
-N = 1000  # Number of people
-K = 10  # Number of communities
-b = 20  # Number of bridge individuals
-infected = [False] * N  # Array to record infection status
-infected[0] = True  # Initial infected person
-total_infected = [1]  # List to store the number of infected individuals after each round
+# Function to simulate the pandemic spread and calculate R0
+def simulate_pandemic(alpha, beta, t1, t2, T, num_social_connections, social_ratio, vaccine_round, vaccine_efficacy, vaccination_rate):
+    # Initialize the simulation
+    N = 1000  # Number of people
+    initial_infected = [False] * N
+    total_infected = [0] * T
+
+    # Create a list of social connections for each individual
+    social_connections = []
+    for i in range(N):
+        # Randomly select social connections for each individual
+        connections = random.sample(range(N), num_social_connections)
+        social_connections.append(connections)
+
+    # Select a random initial infected person
+    initial_infected_person = random.randint(0, N - 1)
+    initial_infected[initial_infected_person] = True
+    total_infected[0] = 1
+
+    # Lists to keep track of vaccination status, efficacy, and rate
+    vaccinated = [False] * N
+    vaccine_effective = [False] * N
+    vaccination_started = False
+
+    # Simulate the spread of the pandemic
+    for round in range(1, T):
+        new_infections = 0
+        for i in range(N):
+            if initial_infected[i]:
+                contacts = random.sample(social_connections[i], int(social_ratio * num_social_connections))
+                for j in contacts:
+                    if not initial_infected[j] and random.random() < beta:
+                        if vaccination_started and vaccinated[j]:
+                            if random.random() > vaccine_efficacy:
+                                initial_infected[j] = True
+                            else:
+                                vaccine_effective[j] = True
+                        elif not vaccinated[j]:
+                            if vaccination_started and random.random() < vaccination_rate:
+                                vaccinated[j] = True
+                                vaccine_effective[j] = True
+                            else:
+                                initial_infected[j] = True
+                        new_infections += 1
+
+        total_infected[round] = total_infected[round - 1] + new_infections
+
+        # Introduce the vaccine at the specified round
+        if round == vaccine_round:
+            vaccination_started = True
+
+    # Calculate R0 for step 6
+    R0_step6 = total_infected[t1] / total_infected[0]
+
+    # Calculate R0 for step 7
+    R0_step7 = total_infected[t1 + t2] / total_infected[0]
+
+    return total_infected, R0_step6, R0_step7
 
 # Parameters
-gamma = 0.2  # Ratio of social connections to interact with
+alpha = 0.005  # Ratio of contacts
 beta = 0.01  # Infection probability
 t1 = 5  # Duration of infectiousness
 t2 = 20  # Duration of immunity
-t3 = 1000  # Round at which vaccine is introduced
-theta = 0.7  # Vaccine effectiveness (0 < theta < 1)
-
-# Create community assignments for each individual
-community_assignments = [random.randint(0, K - 1) for _ in range(N)]
-
-# Create a random graph using G(n, p) model for social connections
-G = nx.gnp_random_graph(N, 0.2)  # Adjust p as needed
-
-# Step 2 to 4: Simulate the spread of the pandemic
 T = 2000  # Total rounds
-for round in range(1, T):
-    new_infections = 1  # Initialize with 1 for the initial infected person
-    for i in range(N):
-        if infected[i]:
-            social_connections = list(G.neighbors(i))
-            num_contacts = int(gamma * len(social_connections))
-            contacts = random.sample(social_connections, num_contacts)
-            for j in contacts:
-                if not infected[j] and random.random() < beta:
-                    infected[j] = True
-                    new_infections += 1
+num_social_connections = 10  # Number of social connections for each individual
+social_ratio = 0.2  # Ratio of social connections contacted in each round
+vaccine_round = 500  # Round at which the vaccine is introduced
+vaccine_efficacy = 0.9  # Efficacy of the vaccine
+vaccination_rate_low = 0.2  # Low vaccination rate
+vaccination_rate_high = 0.8  # High vaccination rate
 
-    # Step 5: Introduce the vaccine at t3 round
-    if round == t3:
-        for i in range(N):
-            if random.random() < theta:
-                infected[i] = False
+# Run the simulation for low vaccination rate
+total_infected_low, R0_step6_low, R0_step7_low = simulate_pandemic(
+    alpha, beta, t1, t2, T, num_social_connections, social_ratio, vaccine_round, vaccine_efficacy, vaccination_rate_low
+)
 
-    # Step 5: Record the number of infected individuals
-    total_infected.append(total_infected[-1] + new_infections)
+# Run the simulation for high vaccination rate
+total_infected_high, R0_step6_high, R0_step7_high = simulate_pandemic(
+    alpha, beta, t1, t2, T, num_social_connections, social_ratio, vaccine_round, vaccine_efficacy, vaccination_rate_high
+)
 
-# Vaccination rates for two communities
-v1 = 0.5
-v2 = 0.85
+# Plot the results for low and high vaccination rates
+plt.plot(range(T), total_infected_low, label=f'Low Vaccination Rate ({vaccination_rate_low})')
+plt.plot(range(T), total_infected_high, label=f'High Vaccination Rate ({vaccination_rate_high})')
 
-# Calculate the number of vaccinated individuals in each community
-num_vaccinated_community1 = int(N * v1)
-num_vaccinated_community2 = int(N * v2)
-
-# Apply vaccination to individuals in the respective communities
-for i in range(N):
-    if community_assignments[i] == 0 and num_vaccinated_community1 > 0:
-        if random.random() < v1:
-            infected[i] = False
-            num_vaccinated_community1 -= 1
-    elif community_assignments[i] == 1 and num_vaccinated_community2 > 0:
-        if random.random() < v2:
-            infected[i] = False
-            num_vaccinated_community2 -= 1
-
-# Plot the results
-plt.plot(range(T), total_infected)
+# Customize the plot
 plt.xlabel('Rounds')
 plt.ylabel('Total Infected')
-plt.title('Pandemic Spread with Vaccination in Communities')
+plt.title('Pandemic Spread with Different Vaccination Rates')
+plt.legend()
 plt.show()
 
-# Step 6: Calculate R0 for step 6
-R0_step6 = total_infected[t1] / total_infected[0]
-
-# Step 7: Calculate R0 for step 7
-R0_step7 = total_infected[t1 + t2] / total_infected[0]
-
-print(f'R0 for step 6: {R0_step6}')
-print(f'R0 for step 7: {R0_step7}')
+# Print R0 values for both scenarios
+print(f'R0 for step 6 (Low Vaccination Rate): {R0_step6_low}')
+print(f'R0 for step 7 (Low Vaccination Rate): {R0_step7_low}')
+print(f'R0 for step 6 (High Vaccination Rate): {R0_step6_high}')
+print(f'R0 for step 7 (High Vaccination Rate): {R0_step7_high}')
