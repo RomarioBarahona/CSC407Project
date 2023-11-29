@@ -2,7 +2,7 @@ import random
 import matplotlib.pyplot as plt
 
 # Function to simulate the pandemic spread and calculate R0
-def simulate_pandemic(alpha, beta, t1, t2, T, vaccine_rounds, vaccination_rate):
+def simulate_pandemic(alpha, beta, t1, t2, T, vaccine_round, vaccine_efficiency, vaccination_rate):
     # Initialize the simulation
     N = 1000  # Number of people
     initial_infected = [False] * N
@@ -17,8 +17,8 @@ def simulate_pandemic(alpha, beta, t1, t2, T, vaccine_rounds, vaccination_rate):
 
     # Simulate the spread of the pandemic
     for round in range(1, T):
-        if round in vaccine_rounds:
-            # Introduce the vaccine gradually for a fraction of the population
+        if round == vaccine_round:
+            # Introduce the vaccine for a fraction of the population
             vaccinated = random.sample(range(N), int(vaccination_rate * N))
             for v in vaccinated:
                 initial_infected[v] = False  # Vaccinated individuals are immune
@@ -28,9 +28,16 @@ def simulate_pandemic(alpha, beta, t1, t2, T, vaccine_rounds, vaccination_rate):
             if initial_infected[i]:
                 contacts = random.sample(range(N), int(alpha * N))
                 for j in contacts:
-                    if not initial_infected[j] and random.random() < beta:
-                        initial_infected[j] = True
-                        new_infections += 1
+                    if not initial_infected[j]:
+                        # Apply vaccine effect
+                        if round >= vaccine_round:
+                            if random.random() < beta * (1 - vaccine_efficiency):
+                                initial_infected[j] = True
+                                new_infections += 1
+                        else:
+                            if random.random() < beta:
+                                initial_infected[j] = True
+                                new_infections += 1
         
         new_infections_per_round[round] = new_infections
         total_infected[round] = total_infected[round - 1] + new_infections
@@ -48,30 +55,25 @@ alpha = 0.005  # Ratio of contacts
 beta = 0.01  # Infection probability
 t1 = 5  # Duration of infectiousness
 t2 = 20  # Duration of immunity
-T = 500  # Total rounds
-vaccine_rounds = list(range(250, 301))  # Rounds at which the vaccine is introduced
-vaccination_rate = 0.8  # Fraction of the population that will take the vaccine
+T = 2000  # Total rounds
+vaccine_round = 100  # Round at which the vaccine is introduced
+vaccine_efficiency = 0.95  # Vaccine effectiveness (95%)
 
-# Run the simulation
-total_infected, new_infections_per_round, R0_step6, R0_step7 = simulate_pandemic(alpha, beta, t1, t2, T, vaccine_rounds, vaccination_rate)
+# Define different vaccination rates to simulate
+vaccination_rates = [0.2, 0.4, 0.6, 0.8, 1.0]  # Varying rates (e.g., 20%, 40%, 60%, 80%, 100%)
 
-# Plot the results for total infected
-plt.figure(figsize=(10, 6))
-plt.subplot(2, 1, 1)
-plt.plot(range(T), total_infected, label='Total Infected')
+# Run simulations for different vaccination rates
+results = []
+for rate in vaccination_rates:
+    total_infected, _, _, _ = simulate_pandemic(alpha, beta, t1, t2, T, vaccine_round, vaccine_efficiency, rate)
+    results.append(total_infected)
+
+# Plot the results for total infected with different vaccination rates
+plt.figure(figsize=(12, 6))
+for i, rate in enumerate(vaccination_rates):
+    plt.plot(range(T), results[i], label=f'Vaccination Rate {int(rate*100)}%')
+
 plt.ylabel('Total Infected')
-plt.title('Total Infected Individuals')
-
-# Plot the results for new infections per round
-plt.subplot(2, 1, 2)
-plt.plot(range(T), new_infections_per_round, label='New Infections per Round')
-plt.xlabel('Rounds')
-plt.ylabel('New Infections per Round')
-plt.title('New Infections per Round')
-
-plt.tight_layout()
+plt.title('Total Infected Individuals with Different Vaccination Rates')
+plt.legend()
 plt.show()
-
-# Print R0 values for the simulation
-print(f'R0 for step 6: {R0_step6}')
-print(f'R0 for step 7: {R0_step7}')
